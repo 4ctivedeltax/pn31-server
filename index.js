@@ -130,3 +130,29 @@ app.patch('/accounts/:username', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`PN31 API on port ${PORT}`));
+
+// GET /login-by-name
+app.get('/login-by-name', async (req, res) => {
+    const { prenomNom, password, robloxUser } = req.query;
+    if (!prenomNom || !password || !robloxUser) return res.json({ success: false });
+    try {
+        const entries = await dsList();
+        for (const e of entries) {
+            const key = e.id;
+            const data = await dsGet(key);
+            if (!data) continue;
+            const fullName = `${data.prenom || ''} ${data.nom || ''}`.trim().toLowerCase();
+            if (fullName === prenomNom.trim().toLowerCase() && data.password === password) {
+                // Vérifie que le username Roblox correspond
+                if (key.toLowerCase() === robloxUser.toLowerCase()) {
+                    return res.json({ success: true });
+                } else {
+                    return res.json({ success: false, reason: 'wrong_roblox_user' });
+                }
+            }
+        }
+        res.json({ success: false });
+    } catch (e) {
+        res.json({ success: false });
+    }
+});
