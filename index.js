@@ -1,15 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const app = express();
- 
+
 app.use(cors());
 app.use(express.json());
- 
+
 const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY;
 const UNIVERSE_ID = '9936071044';
 const DATASTORE_NAME = 'Comptes';
 const BASE = `https://apis.roblox.com/cloud/v2/universes/${UNIVERSE_ID}/data-stores/${encodeURIComponent(DATASTORE_NAME)}/entries`;
- 
+
 async function dsGet(key) {
   const res = await fetch(`${BASE}/${encodeURIComponent(key)}`, {
     headers: { 'x-api-key': ROBLOX_API_KEY }
@@ -20,15 +20,15 @@ async function dsGet(key) {
   // La valeur est dans entry.value (string JSON)
   try { return JSON.parse(entry.value); } catch(e) { return entry.value; }
 }
- 
+
 async function dsSet(key, value) {
   // Créer l'entrée si elle n'existe pas
   const checkRes = await fetch(`${BASE}/${encodeURIComponent(key)}`, {
     headers: { 'x-api-key': ROBLOX_API_KEY }
   });
- 
+
   const body = JSON.stringify({ value: JSON.stringify(value) });
- 
+
   if (checkRes.status === 404) {
     // Créer
     const res = await fetch(`${BASE}?id=${encodeURIComponent(key)}`, {
@@ -48,7 +48,7 @@ async function dsSet(key, value) {
   }
   return true;
 }
- 
+
 async function dsDelete(key) {
   const res = await fetch(`${BASE}/${encodeURIComponent(key)}`, {
     method: 'DELETE',
@@ -57,23 +57,23 @@ async function dsDelete(key) {
   if (!res.ok && res.status !== 404) throw new Error(await res.text());
   return true;
 }
- 
+
 async function dsList() {
-  const res = await fetch(`${BASE}?maxPageSize=100`, {
+  const res = await fetch(`https://apis.roblox.com/datastores/v1/universes/${UNIVERSE_ID}/standard-datastores/datastore/entries?datastoreName=${encodeURIComponent(DATASTORE_NAME)}&limit=100`, {
     headers: { 'x-api-key': ROBLOX_API_KEY }
   });
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
-  return data.entries || [];
+  return (data.keys || []).map(k => ({ id: k.key }));
 }
- 
+
 // GET /accounts
 app.get('/accounts', async (req, res) => {
   try {
     const entries = await dsList();
     const accounts = await Promise.all(
       entries.map(async e => {
-        const key = e.id.split('/').pop();
+        const key = e.id;
         const data = await dsGet(key);
         return { username: key, ...(data || {}) };
       })
@@ -83,7 +83,7 @@ app.get('/accounts', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
- 
+
 // POST /accounts
 app.post('/accounts', async (req, res) => {
   const { username, password, grade } = req.body;
@@ -102,7 +102,7 @@ app.post('/accounts', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
- 
+
 // DELETE /accounts/:username
 app.delete('/accounts/:username', async (req, res) => {
   try {
@@ -112,7 +112,7 @@ app.delete('/accounts/:username', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
- 
+
 // PATCH /accounts/:username
 app.patch('/accounts/:username', async (req, res) => {
   const { grade } = req.body;
@@ -125,6 +125,6 @@ app.patch('/accounts/:username', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
- 
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`PN31 API on port ${PORT}`));
