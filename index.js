@@ -17,20 +17,15 @@ async function dsGet(key) {
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(await res.text());
   const entry = await res.json();
-  // La valeur est dans entry.value (string JSON)
   try { return JSON.parse(entry.value); } catch(e) { return entry.value; }
 }
 
 async function dsSet(key, value) {
-  // Créer l'entrée si elle n'existe pas
   const checkRes = await fetch(`${BASE}/${encodeURIComponent(key)}`, {
     headers: { 'x-api-key': ROBLOX_API_KEY }
   });
-
   const body = JSON.stringify({ value: JSON.stringify(value) });
-
   if (checkRes.status === 404) {
-    // Créer
     const res = await fetch(`${BASE}?id=${encodeURIComponent(key)}`, {
       method: 'POST',
       headers: { 'x-api-key': ROBLOX_API_KEY, 'content-type': 'application/json' },
@@ -38,7 +33,6 @@ async function dsSet(key, value) {
     });
     if (!res.ok) throw new Error(await res.text());
   } else {
-    // Mettre à jour
     const res = await fetch(`${BASE}/${encodeURIComponent(key)}`, {
       method: 'PATCH',
       headers: { 'x-api-key': ROBLOX_API_KEY, 'content-type': 'application/json' },
@@ -73,9 +67,8 @@ app.get('/accounts', async (req, res) => {
     const entries = await dsList();
     const accounts = await Promise.all(
       entries.map(async e => {
-        const key = e.id;
-        const data = await dsGet(key);
-        return { username: key, ...(data || {}) };
+        const data = await dsGet(e.id);
+        return { username: e.id, ...(data || {}) };
       })
     );
     res.json(accounts);
@@ -86,7 +79,7 @@ app.get('/accounts', async (req, res) => {
 
 // POST /accounts
 app.post('/accounts', async (req, res) => {
-  const { username, password, grade } = req.body;
+  const { username, password, grade, prenom, nom } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Champs manquants' });
   try {
     const existing = await dsGet(username);
@@ -94,8 +87,8 @@ app.post('/accounts', async (req, res) => {
     await dsSet(username, {
       password,
       grade: grade || 'Gardien de la Paix',
-      prenom: req.body.prenom || '',
-      nom: req.body.nom || '',
+      prenom: prenom || '',
+      nom: nom || '',
       created: new Date().toLocaleDateString('fr-FR'),
       createdBy: 'Site PN31'
     });
@@ -128,31 +121,29 @@ app.patch('/accounts/:username', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`PN31 API on port ${PORT}`));
-
 // GET /login-by-name
 app.get('/login-by-name', async (req, res) => {
-    const { prenomNom, password, robloxUser } = req.query;
-    if (!prenomNom || !password || !robloxUser) return res.json({ success: false });
-    try {
-        const entries = await dsList();
-        for (const e of entries) {
-            const key = e.id;
-            const data = await dsGet(key);
-            if (!data) continue;
-            const fullName = `${data.prenom || ''} ${data.nom || ''}`.trim().toLowerCase();
-            if (fullName === prenomNom.trim().toLowerCase() && data.password === password) {
-                // Vérifie que le username Roblox correspond
-                if (key.toLowerCase() === robloxUser.toLowerCase()) {
-                    return res.json({ success: true });
-                } else {
-                    return res.json({ success: false, reason: 'wrong_roblox_user' });
-                }
-            }
+  const { prenomNom, password, robloxUser } = req.query;
+  if (!prenomNom || !password || !robloxUser) return res.json({ success: false });
+  try {
+    const entries = await dsList();
+    for (const e of entries) {
+      const data = await dsGet(e.id);
+      if (!data) continue;
+      const fullName = `${data.prenom || ''} ${data.nom || ''}`.trim().toLowerCase();
+      if (fullName === prenomNom.trim().toLowerCase() && data.password === password) {
+        if (e.id.toLowerCase() === robloxUser.toLowerCase()) {
+          return res.json({ success: true });
+        } else {
+          return res.json({ success: false, reason: 'wrong_roblox_user' });
         }
-        res.json({ success: false });
-    } catch (e) {
-        res.json({ success: false });
+      }
     }
+    res.json({ success: false });
+  } catch (e) {
+    res.json({ success: false });
+  }
 });
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`PN31 API on port ${PORT}`));
