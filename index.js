@@ -128,3 +128,19 @@ app.patch('/accounts/:username', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`PN31 API on port ${PORT}`));
+
+// GET /login
+app.get('/login', async (req, res) => {
+    const { username, password } = req.query;
+    if (!username || !password) return res.json({ success: false });
+    try {
+        const data = await dsGet(username);
+        if (data && data.password === password) {
+            res.json({ success: true });
+        } else {
+            res.json({ success: false });
+        }
+    } catch (e) {
+        res.json({ success: false });
+    }
+});
